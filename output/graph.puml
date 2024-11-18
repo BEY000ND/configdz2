@@ -1,0 +1,10 @@
+@startuml
+'dependency_visualizer.py'
+'dependency_visualizer.py'
+'dependency_visualizer.py'
+'dependency_visualizer.py'
+'dependency_visualizer.py'
+'test_dependency_visualizer.py'
+'example.txt'
+'example.txt'
+@enduml
