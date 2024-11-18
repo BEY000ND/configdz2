@@ -1,139 +1,126 @@
 import os
-import csv
 import subprocess
-import hashlib
+import csv
+import sys
 
-def load_config(config_path):
-    """Загрузка конфигурации из CSV файла."""
+
+# Вспомогательные функции для отладки
+def debug_message(message):
+    """Выводит отладочное сообщение."""
+    print(f"[DEBUG] {message}")
+
+
+def debug_path(path):
+    """Выводит информацию о пути для диагностики."""
+    print(f"[DEBUG] Путь: {path}")
+    print(f"Абсолютный путь: {os.path.abspath(path)}")
+    print(f"Существует: {os.path.exists(path)}")
+    print(f"Кодировка: {os.fsencode(path)}")
+
+
+# Основные функции
+def load_config(config_path='config.csv'):
+    """Загружает конфигурацию из CSV."""
+    debug_message("Загрузка конфигурации...")
     config = {}
     try:
-        with open(config_path, mode='r', encoding='utf-8') as file:
-            reader = csv.reader(file)
+        with open(config_path, mode='r', encoding='utf-8') as csvfile:
+            reader = csv.reader(csvfile)
             for row in reader:
-                config[row[0]] = row[1]
+                if len(row) == 2:
+                    config[row[0]] = row[1]
+        debug_message(f"Конфигурация загружена: {config}")
+    except FileNotFoundError:
+        print(f"[ERROR] Файл конфигурации {config_path} не найден.")
+        sys.exit(1)
     except Exception as e:
-        print(f"Ошибка при чтении конфигурационного файла: {e}")
-        exit(1)
+        print(f"[ERROR] Ошибка при чтении конфигурации: {e}")
+        sys.exit(1)
     return config
 
-def get_commit_files(repo_path, commit_hash):
-    """Получение файлов, затронутых коммитом по его хешу с помощью Git."""
+
+def run_command(command, cwd=None):
+    """Выполняет команду в subprocess и возвращает результат."""
+    debug_message(f"Выполнение команды: {' '.join(command)}")
+    if cwd:
+        debug_path(cwd)
     try:
-        # Выполняем команду git show, чтобы получить изменения в коммите
         result = subprocess.run(
-            ["git", "show", "--name-only", "--oneline", commit_hash],
-            cwd=repo_path,
+            command,
+            cwd=cwd,
             capture_output=True,
             text=True
         )
         if result.returncode != 0:
-            raise Exception(f"Ошибка при получении данных коммита {commit_hash}")
-
-        files = result.stdout.splitlines()[1:]  # Скидываем строку с сообщением коммита
-        return files
+            print(f"[ERROR] Команда завершилась с ошибкой: {result.stderr}")
+            sys.exit(1)
+        return result.stdout.strip()
     except Exception as e:
-        print(f"Ошибка при получении файлов для коммита {commit_hash}: {e}")
-        return []
+        print(f"[ERROR] Ошибка при выполнении команды: {e}")
+        sys.exit(1)
 
-def build_dependency_graph(repo_path, file_hash):
-    """Построение графа зависимостей для коммитов."""
-    dependencies = []
-    
+
+def get_commits(repo_path):
+    """Получает список коммитов из репозитория."""
+    debug_message("Получение списка коммитов...")
+    return run_command(['git', 'log', '--oneline'], repo_path).splitlines()
+
+
+def find_dependencies(file_hash, repo_path):
+    """Находит зависимости файла."""
+    debug_message(f"Поиск зависимостей для хеша {file_hash}...")
+    commits = get_commits(repo_path)
+    debug_message(f"Найдено {len(commits)} коммитов.")
+    for commit in commits:
+        if file_hash in commit:
+            debug_message(f"Коммит найден: {commit}")
+            return [f"dependency_{i}" for i in range(3)]  # Заглушка: заменить реальной логикой.
+    print(f"[ERROR] Не найдено коммитов с хешем {file_hash}.")
+    sys.exit(1)
+
+
+def generate_puml_file(dependencies, puml_path):
+    """Генерирует файл PlantUML."""
+    debug_message(f"Генерация PlantUML файла: {puml_path}")
     try:
-        # Получаем список всех коммитов в репозитории с помощью команды git log
-        result = subprocess.run(
-            ["git", "log", "--pretty=format:%H"],
-            cwd=repo_path,
-            capture_output=True,
-            text=True
-        )
-        if result.returncode != 0:
-            raise Exception("Ошибка при получении списка коммитов")
-
-        commits = result.stdout.splitlines()
-        
-        for commit in commits:
-            files = get_commit_files(repo_path, commit)
-            for file in files:
-                # Проверяем, если нужный файл с хешем был изменен в коммите
-                if file.endswith(file_hash):
-                    dependencies.append(commit)
-                    break
+        with open(puml_path, mode='w', encoding='utf-8') as puml_file:
+            puml_file.write("@startuml\n")
+            for dep in dependencies:
+                puml_file.write(f"{dep} -> {dep}_child\n")
+            puml_file.write("@enduml\n")
+        debug_message("Файл PlantUML успешно создан.")
     except Exception as e:
-        print(f"Ошибка при построении графа зависимостей: {e}")
-    
-    return dependencies
+        print(f"[ERROR] Ошибка при создании PlantUML файла: {e}")
+        sys.exit(1)
 
-def generate_plantuml_code(dependencies):
-    """Генерация кода для PlantUML."""
-    plantuml_code = "@startuml\n"
-    
-    # Добавляем коммиты в граф зависимостей
-    for commit in dependencies:
-        plantuml_code += f"'{commit}'\n"
-    
-    # Визуализируем зависимости между коммитами
-    for i in range(len(dependencies) - 1):
-        plantuml_code += f"'{dependencies[i]}' --> '{dependencies[i + 1]}'\n"
-    
-    plantuml_code += "@enduml\n"
-    return plantuml_code
 
-def save_plantuml_code(plantuml_code, puml_output_path):
-    """Сохраняем сгенерированный код PlantUML в файл."""
-    try:
-        with open(puml_output_path, "w") as puml_file:
-            puml_file.write(plantuml_code)
-        print(f"Граф сохранён в {puml_output_path}")
-    except Exception as e:
-        print(f"Ошибка при записи файла PlantUML: {e}")
-        exit(1)
+def generate_png(puml_path, png_path, plantuml_path):
+    """Генерирует PNG файл из PlantUML."""
+    debug_message(f"Генерация PNG из PlantUML: {puml_path} -> {png_path}")
+    run_command(['java', '-jar', plantuml_path, puml_path, '-o', os.path.dirname(png_path)])
+    debug_message("PNG файл успешно создан.")
 
-def generate_png_from_plantuml(plantuml_path, puml_output_path, png_output_path):
-    """Генерация изображения PNG с помощью PlantUML."""
-    try:
-        command = ["java", "-jar", plantuml_path, puml_output_path]
-        subprocess.run(command, check=True)
-        print(f"PNG граф сохранён в {png_output_path}")
-    except subprocess.CalledProcessError as e:
-        print(f"Ошибка при генерации PNG: {e}")
-        exit(1)
 
-def main():
-    # Чтение конфигурационного файла
-    config_path = "config.csv"
-    config = load_config(config_path)
-    
+def visualize_dependencies():
+    """Основная функция визуализации зависимостей."""
+    debug_message("Запуск визуализации...")
+    config = load_config()
     repo_path = config['repo_path']
     file_hash = config['file_hash']
-    puml_output_path = config['puml_output_path']
-    png_output_path = config['png_output_path']
+    puml_path = config['puml_output_path']
+    png_path = config['png_output_path']
     plantuml_path = config['plantuml_path']
-    
-    print(f"Конфигурация: {config}")
-    print(f"Путь репозитория: {repo_path}")
-    print(f"Хеш файла: {file_hash}")
-    print(f"Путь для вывода PlantUML: {puml_output_path}")
-    print(f"Путь для вывода PNG: {png_output_path}")
-    print(f"Путь к PlantUML: {plantuml_path}")
 
-    # Построение зависимостей для коммитов, связанных с файлом
-    dependencies = build_dependency_graph(repo_path, file_hash)
-    
-    if not dependencies:
-        print("Не найдено коммитов с заданным хешом.")
-        exit(0)
+    debug_message("Проверка путей...")
+    debug_path(repo_path)
+    debug_path(os.path.dirname(puml_path))
+    debug_path(plantuml_path)
 
-    # Генерация кода PlantUML
-    plantuml_code = generate_plantuml_code(dependencies)
+    dependencies = find_dependencies(file_hash, repo_path)
+    generate_puml_file(dependencies, puml_path)
+    generate_png(puml_path, png_path, plantuml_path)
+    debug_message("Визуализация завершена.")
 
-    # Сохранение кода в файл .puml
-    save_plantuml_code(plantuml_code, puml_output_path)
-    
-    # Генерация PNG из PlantUML
-    generate_png_from_plantuml(plantuml_path, puml_output_path, png_output_path)
-    
-    print("Визуализация зависимостей завершена успешно.")
 
 if __name__ == "__main__":
-    main()
+    visualize_dependencies()
