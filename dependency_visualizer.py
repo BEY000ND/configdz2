@@ -9,20 +9,31 @@ def get_commit_dependencies(repo_path, file_hash):
     :param file_hash: Хеш файла для поиска зависимостей
     :return: Список коммитов, содержащих зависимости
     """
+    # Команда для получения списка всех коммитов с их хешами и сообщениями
     command = ["git", "-C", repo_path, "log", "--pretty=format:%H %s"]
     result = subprocess.run(command, capture_output=True, text=True)
+    
+    # Получаем все коммиты
     commits = result.stdout.splitlines()
-
-    relevant_commits = []
+    
+    relevant_commits = []  # Список коммитов, в которых упоминается файл с нужным хешем
     for commit in commits:
         commit_hash, commit_message = commit.split(" ", 1)
+        
+        # Проверяем изменения в файле с данным хешем
         command = ["git", "-C", repo_path, "show", "--name-only", "--pretty=format:", commit_hash]
         result = subprocess.run(command, capture_output=True, text=True)
+        
         changed_files = result.stdout.splitlines()
+        print(f"Changed files in commit {commit_hash}: {changed_files}")  # Логирование измененных файлов
+        
         for file in changed_files:
+            # Если хеш файла присутствует в измененных файлах, добавляем коммит в список
             if file_hash in file:
+                print(f"Found relevant commit: {commit_hash} with message: {commit_message}")  # Логирование найденного коммита
                 relevant_commits.append((commit_hash, commit_message))
                 break
+    
     return relevant_commits
 
 def generate_plantuml_graph(commits, puml_output_path, png_output_path, plantuml_path):
