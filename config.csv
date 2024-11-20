@@ -1,5 +1,2 @@
-repo_path,C:\Users\panze\OneDrive\Документы\vuz\config\dz2
-file_hash,1bee111f807b8c3b357af3141201eddfc50f736f
-puml_output_path,C:\Users\panze\OneDrive\Документы\vuz\config\dz2\output\graph.puml
-png_output_path,C:\Users\panze\OneDrive\Документы\vuz\config\dz2\output\graph.png
-plantuml_path,C:\Users\panze\OneDrive\Документы\vuz\config\dz2\plantuml.jar
+repo_path,file_hash,puml_output_path,png_output_path,plantuml_path
+C:\Users\panze\OneDrive\Документы\vuz\config\dz2,1bee111f807b8c3b357af3141201eddfc50f736f,C:\Users\panze\OneDrive\Документы\vuz\config\dz2\output\graph.puml,C:\Users\panze\OneDrive\Документы\vuz\config\dz2\output\graph.png,C:\Users\panze\OneDrive\Документы\vuz\config\dz2\plantuml.jar
