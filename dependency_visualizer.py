@@ -4,10 +4,10 @@ import csv
 
 # Функция для выполнения команд
 def run_command(command, cwd=None):
-    result = subprocess.run(command, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    result = subprocess.run(command, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     if result.returncode != 0:
-        raise Exception(f"Error running command {' '.join(command)}: {result.stderr.decode()}")
-    return result.stdout.decode()
+        raise Exception(f"Error running command {' '.join(command)}: {result.stderr}")
+    return result.stdout
 
 # Функция для извлечения списка измененных файлов из коммита
 def get_changed_files(commit_hash, repo_path):
@@ -17,6 +17,7 @@ def get_changed_files(commit_hash, repo_path):
 
 # Функция для создания диаграммы .puml
 def generate_puml(changed_files, puml_output_path):
+    os.makedirs(os.path.dirname(puml_output_path), exist_ok=True)
     with open(puml_output_path, 'w', encoding='utf-8') as f:
         f.write('@startuml\n')
         for file in changed_files:
@@ -37,29 +38,29 @@ def main():
         reader = csv.DictReader(csvfile)
         for row in reader:
             config = row
-    
+
     # Параметры конфигурации
     repo_path = config['repo_path']
     file_hash = config['file_hash']
     puml_output_path = config['puml_output_path']
     png_output_path = config['png_output_path']
     plantuml_path = config['plantuml_path']
-    
+
     # Получаем измененные файлы для указанного хеша
     print(f"Получаем измененные файлы для коммита {file_hash}...")
     changed_files = get_changed_files(file_hash, repo_path)
-    
+
     if not changed_files:
         print("Нет изменений в файлах для этого коммита.")
         return
 
     print("Измененные файлы:", changed_files)
-    
+
     # Генерируем файл .puml
     print(f"Создание диаграммы .puml в {puml_output_path}...")
     generate_puml(changed_files, puml_output_path)
     print(f"Файл {puml_output_path} успешно создан.")
-    
+
     # Генерируем файл .png
     print(f"Создание диаграммы .png в {png_output_path}...")
     generate_png(puml_output_path, png_output_path, plantuml_path)
